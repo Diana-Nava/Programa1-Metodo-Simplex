@@ -1,2 +1,3 @@
-# Programa1-Metodo-Simplex
-Programa que pueda hacer maximización y minimización
+from scipy.optimize import linprog
+import sympy as sp
+
