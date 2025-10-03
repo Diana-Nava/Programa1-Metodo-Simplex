@@ -12,3 +12,5 @@ for op in operators:
         lhs = expr_str[:pos].strip()
         rhs = expr_str[:pos + len(op):].strip()
         return op, lhs, rhs
+    
+ raise ValueError("No se detectó un operador válido (<=, >=, =, <, >).")
