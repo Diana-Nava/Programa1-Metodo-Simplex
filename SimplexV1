@@ -1,2 +1,7 @@
 from scipy.optimize import linprog 
 import sympy as sp
+def find_operator_and_split(expr_str):
+    
+    expr_str = ' '.join(expr_str.split())  
+    
+    operators = ['<=', '>=', '=', '<', '>']
