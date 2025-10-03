@@ -29,4 +29,14 @@ def parse_restriccion(expr_str, variables):
             operador = '<='
         elif operador == '>':
             operador = '>='
-            
+        # Parsear LHS y RHS con sympy
+        lhs_expr = sp.sympify(lhs_str)
+        
+        # RHS debe ser constante numérica
+        if rhs_str:
+            rhs_expr = sp.sympify(rhs_str)
+            if rhs_expr.free_symbols:  # Si RHS tiene variables, error
+                raise ValueError("El lado derecho (RHS) debe ser un número constante, no una expresión con variables (ej. no 'x3 + 2').")
+            rhs_val = float(rhs_expr)
+        else:
+            rhs_val = 0.0
