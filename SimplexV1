@@ -39,4 +39,8 @@ def parse_restriccion(expr_str, variables):
                 raise ValueError("El lado derecho (RHS) debe ser un número constante, no una expresión con variables (ej. no 'x3 + 2').")
             rhs_val = float(rhs_expr)
         else:
-            rhs_val = 0.0
+            rhs_val = 0.0 
+            
+            # Determinar tipo y multiplier (para >=, invertir)
+        if operador == '<=':
+            tipo = 'le'
