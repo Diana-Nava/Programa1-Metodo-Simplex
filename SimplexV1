@@ -14,3 +14,19 @@ def find_operator_and_split(expr_str):
             return op, lhs, rhs
     
     raise ValueError("No se detectó un operador válido (<=, >=, =, <, >).")
+
+def parse_restriccion(expr_str, variables):
+    """
+    Parsea una restricción flexible con cualquier formato y símbolo.
+    Maneja constantes en LHS robustamente.
+    Devuelve (coeficientes, b, tipo) donde tipo es 'le' (<=) o 'eq' (=).
+    """
+    try:
+        operador, lhs_str, rhs_str = find_operator_and_split(expr_str)
+        
+        # Convertir < y > a <= y >=
+        if operador == '<':
+            operador = '<='
+        elif operador == '>':
+            operador = '>='
+            
