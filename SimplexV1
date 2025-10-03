@@ -6,11 +6,11 @@ def find_operator_and_split(expr_str):
     
     operators = ['<=', '>=', '=', '<', '>']
 
-for op in operators:
-    pos = expr_str.findo(op)
-    if pos != -1:
-        lhs = expr_str[:pos].strip()
-        rhs = expr_str[:pos + len(op):].strip()
-        return op, lhs, rhs
+    for op in operators:
+        pos = expr_str.find(op)
+        if pos != -1:
+            lhs = expr_str[:pos].strip()
+            rhs = expr_str[pos + len(op):].strip()
+            return op, lhs, rhs
     
- raise ValueError("No se detectó un operador válido (<=, >=, =, <, >).")
+    raise ValueError("No se detectó un operador válido (<=, >=, =, <, >).")
