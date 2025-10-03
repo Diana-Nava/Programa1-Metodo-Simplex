@@ -1,11 +1,15 @@
-from scipy.optimize import linprog 
+from scipy.optimize import linprog
 import sympy as sp
+
 def find_operator_and_split(expr_str):
-    
-    expr_str = ' '.join(expr_str.split())  
+    """
+    Encuentra el primer operador válido y divide la expresión en LHS y RHS.
+    Soporta <=, >=, =, <, > con espacios variables.
+    """
+    expr_str = ' '.join(expr_str.split())  # Normaliza espacios múltiples
     
     operators = ['<=', '>=', '=', '<', '>']
-
+    
     for op in operators:
         pos = expr_str.find(op)
         if pos != -1:
@@ -29,6 +33,7 @@ def parse_restriccion(expr_str, variables):
             operador = '<='
         elif operador == '>':
             operador = '>='
+        
         # Parsear LHS y RHS con sympy
         lhs_expr = sp.sympify(lhs_str)
         
@@ -39,8 +44,137 @@ def parse_restriccion(expr_str, variables):
                 raise ValueError("El lado derecho (RHS) debe ser un número constante, no una expresión con variables (ej. no 'x3 + 2').")
             rhs_val = float(rhs_expr)
         else:
-            rhs_val = 0.0 
-            
-            # Determinar tipo y multiplier (para >=, invertir)
+            rhs_val = 0.0
+        
+        # Determinar tipo y multiplier (para >=, invertir)
         if operador == '<=':
             tipo = 'le'
+            multiplier = 1
+        elif operador == '>=':
+            tipo = 'ge'
+            multiplier = -1
+        elif operador == '=':
+            tipo = 'eq'
+            multiplier = 1
+        else:
+            raise ValueError("Operador no soportado después de conversión.")
+        
+        # Extraer coeficientes usando poly (más preciso)
+        poly = lhs_expr.as_poly(variables)
+        if poly is None:
+            raise ValueError("Expresión LHS no polinomial válida.")
+        coef_expr = poly.all_coeffs()
+        # Pad o truncate a número de variables (coeficientes de grado más alto primero, pero ajustamos)
+        n_vars = len(variables)
+        coeficientes = [0.0] * n_vars
+        for i, coef in enumerate(coef_expr):
+            if i < n_vars:
+                coeficientes[n_vars - 1 - i] = float(coef)  # Ajuste para orden x1, x2, ...
+        
+        # Calcular constante en LHS (evaluar con variables=0)
+        subs_dict = {var: 0 for var in variables}
+        constante_lhs = float(lhs_expr.subs(subs_dict))
+        
+        # Mover constante al RHS (considerando multiplier)
+        rhs_val -= multiplier * constante_lhs
+        
+        # Aplicar multiplier a coeficientes
+        coeficientes = [multiplier * coef for coef in coeficientes]
+        
+        # Para >=: ya invertimos, tratar como 'le' y invertir b final
+        if tipo == 'ge':
+            rhs_val = -rhs_val
+            tipo = 'le'
+        
+        return coeficientes, rhs_val, tipo
+        
+    except Exception as e:
+        raise ValueError(f"Error en parsing: {e}. Asegúrese de usar * para multiplicación (ej. 2*x1), números en RHS, y sintaxis matemática válida.")
+
+def main():
+    print("=== MÉTODO SIMPLEX PARA PROGRAMACIÓN LINEAL ===")
+    print("Soporta restricciones en cualquier formato: términos con +, -, *, constantes, espacios variables.")
+    print("Operadores: <, >, =, <=, >= (con o sin espacios). RHS debe ser número constante.")
+    print("Ejemplos: '2*x1 + x2 <= 90', '3*x1 - 2*x2 + 5 >= 10', 'x1 + 2*x2 < 30', 'x2=14'")
+
+    tipo = input("¿Desea maximizar o minimizar? (max/min): ").strip().lower()
+    if tipo not in ['max', 'min']:
+        print("Opción no válida. Use 'max' o 'min'.")
+        return
+
+    n = int(input("Ingrese el número de variables: "))
+
+    # Variables simbólicas
+    variables = sp.symbols(' '.join([f'x{i+1}' for i in range(n)]))
+
+    print(f"Ingrese los coeficientes de la función objetivo z (separados por espacios):")
+    print("Ejemplo para z = 3*x1 + 5*x2: 3 5")
+    print("Para decimales: 1.5 2.5")
+    c_input = input().strip().split()
+    try:
+        c = [float(coef) for coef in c_input]
+        if len(c) != n:
+            raise ValueError("Número incorrecto de coeficientes.")
+    except ValueError as e:
+        print(f"Error en coeficientes: {e}. Use números separados por espacios.")
+        return
+
+    # Ajustar para maximización (minimizar -z)
+    if tipo == 'max':
+        c = [-coef for coef in c]
+
+    m = int(input("Ingrese el número de restricciones: "))
+
+    A_ub = []  # Para <=
+    b_ub = []
+    A_eq = []  # Para =
+    b_eq = []
+
+    no_negativas = input("¿Variables no negativas (x_i >= 0)? (s/n): ").strip().lower() == 's'
+    bounds = (0, None) if no_negativas else None
+
+    print("\nIngrese las restricciones (una por línea):")
+    print("Use x1, x2, etc. para variables. Siempre use * para multiplicación.")
+
+    for i in range(m):
+        while True:  # Loop para reintentar si error
+            restriccion = input(f"Restricción {i+1}: ").strip()
+            if not restriccion:
+                print("Restricción vacía. Intente de nuevo.")
+                continue
+            try:
+                coef, val, restr_tipo = parse_restriccion(restriccion, variables)
+                print(f"  Parseado correctamente: coefs={coef}, b={val}, tipo={restr_tipo}")
+                
+                if restr_tipo == 'le':
+                    A_ub.append(coef)
+                    b_ub.append(val)
+                elif restr_tipo == 'eq':
+                    A_eq.append(coef)
+                    b_eq.append(val)
+                break  # Éxito, salir del loop
+            except Exception as e:
+                print(f"  Error en restricción {i+1}: {e}")
+                print("  Intente de nuevo con formato válido.")
+
+    # Resolver con linprog
+    try:
+        res = linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, 
+                      method='simplex', bounds=bounds)
+    except Exception as e:
+        print(f"Error en el solver: {e}")
+        return
+
+    if res.success:
+        print("\n=== SOLUCIÓN ÓPTIMA ===")
+        valor_objetivo = -res.fun if tipo == 'max' else res.fun
+        print(f"Valor óptimo de z: {valor_objetivo:.6f}")
+        print("Valores de las variables:")
+        for i, x in enumerate(res.x, start=1):
+            print(f"  x{i} = {x:.6f}")
+    else:
+        print("\nNo se encontró solución óptima (posiblemente infactible o ilimitado).")
+        print("Mensaje del solver:", res.message)
+
+if __name__ == "__main__":
+    main()
